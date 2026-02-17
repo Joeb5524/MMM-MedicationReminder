@@ -1,5 +1,5 @@
 .mmm-med {
-    width: 340px;
+    width: 500px;
 }
 
 .mmm-med__list {
@@ -18,17 +18,17 @@
 }
 
 .mmm-med__name {
-    font-size: 20px;
+    font-size: 40px;
     line-height: 1.1;
 }
 
 .mmm-med__meta {
-    font-size: 14px;
+    font-size: 32px;
     margin-top: 2px;
 }
 
 .mmm-med__time {
-    font-size: 20px;
+    font-size: 32px;
     text-align: right;
     line-height: 1.1;
 }
