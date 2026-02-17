@@ -109,12 +109,25 @@ Module.register("MMM-MedicationReminder", {
 
     formatRelative(diffMin) {
         if (!this.config.showRelative) return "";
+
         const abs = Math.abs(diffMin);
 
+        // treat < 1 minute as "now"
         if (abs < 1) return "now";
-        const mins = Math.round(abs);
-        if (diffMin > 0) return `in ${mins}m`;
-        return `${mins}m ago`;
+
+        const totalMins = Math.round(abs);
+
+        // < 60 mins => "in 12m"
+        if (totalMins < 60) {
+            return diffMin > 0 ? `in ${totalMins}m` : `${totalMins}m ago`;
+        }
+
+        // >= 60 mins => "in 2h 23m"
+        const hours = Math.floor(totalMins / 60);
+        const mins = totalMins % 60;
+
+        const hm = mins === 0 ? `${hours}h` : `${hours}h ${mins}m`;
+        return diffMin > 0 ? `in ${hm}` : `${hm} ago`;
     },
 
     getDom() {
