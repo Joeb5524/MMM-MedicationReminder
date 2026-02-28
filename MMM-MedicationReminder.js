@@ -1,16 +1,14 @@
-
+/* global Module */
 
 Module.register("MMM-MedicationReminder", {
     defaults: {
         header: "Medication",
-        medications: [
-            //eg. { name: "Sertraline", dosage: "150mg", time: "09:00" },
-        ],
-        alertWindowMinutes: 15, // "Due soon" window before time
-        missedGraceMinutes: 60, // after due time, mark as missed
-        updateIntervalMs: 1000, // 1s so the UI flips status immediately
+        medications: [],
+        alertWindowMinutes: 15,
+        missedGraceMinutes: 60,
+        updateIntervalMs: 1000,
         use24Hour: true,
-        showRelative: true,     // "in 10m" / "5m ago"
+        showRelative: true,
         maxItems: 6
     },
 
@@ -19,13 +17,34 @@ Module.register("MMM-MedicationReminder", {
         this.items = [];
         this._ticker = null;
 
+        // takenState: { "YYYY-MM-DD": { "<medId>": true } }
+        this.takenState = {};
+        this.todayKey = moment().format("YYYY-MM-DD");
+
         this.buildSchedule();
+
+        // Load persisted taken state
+        this.sendSocketNotification("MED_INIT", {});
+
         this.loaded = true;
 
         this._ticker = setInterval(() => {
+            // day rollover
+            const nowKey = moment().format("YYYY-MM-DD");
+            if (nowKey !== this.todayKey) this.todayKey = nowKey;
+
             this.items = this.computeStatuses();
             this.updateDom(0);
         }, this.config.updateIntervalMs);
+    },
+
+    socketNotificationReceived(notification, payload) {
+        if (notification === "MED_TAKEN_SYNC") {
+            if (payload && typeof payload === "object") {
+                this.takenState = payload.takenState || {};
+                this.updateDom(0);
+            }
+        }
     },
 
     suspend() {
@@ -36,6 +55,9 @@ Module.register("MMM-MedicationReminder", {
     resume() {
         if (!this._ticker) {
             this._ticker = setInterval(() => {
+                const nowKey = moment().format("YYYY-MM-DD");
+                if (nowKey !== this.todayKey) this.todayKey = nowKey;
+
                 this.items = this.computeStatuses();
                 this.updateDom(0);
             }, this.config.updateIntervalMs);
@@ -47,16 +69,42 @@ Module.register("MMM-MedicationReminder", {
     },
 
     buildSchedule() {
-        // Normalise and create schedule for todays medications
         const meds = Array.isArray(this.config.medications) ? this.config.medications : [];
         this._meds = meds
-            .map((m) => ({
-                name: String(m.name ?? "").trim(),
-                dosage: String(m.dosage ?? "").trim(),
-                time: String(m.time ?? "").trim() // "HH:mm"
-            }))
+            .map((m) => {
+                const name = String(m.name ?? "").trim();
+                const dosage = String(m.dosage ?? "").trim();
+                const time = String(m.time ?? "").trim();
+                const id = this.makeMedId(name, time); //
+
+                return { id, name, dosage, time };
+            })
             .filter((m) => m.name && m.time);
+
         this.items = this.computeStatuses();
+    },
+
+    makeMedId(name, time) {
+        return `${String(name).trim().toLowerCase()}|${String(time).trim()}`;
+    },
+
+    isTakenToday(medId) {
+        const day = this.todayKey;
+        return !!(this.takenState[day] && this.takenState[day][medId]);
+    },
+
+    setTakenToday(medId, taken) {
+        const day = this.todayKey;
+        if (!this.takenState[day]) this.takenState[day] = {};
+        if (taken) this.takenState[day][medId] = true;
+        else delete this.takenState[day][medId];
+
+        // Persist
+        this.sendSocketNotification("MED_SET_TAKEN", {
+            date: day,
+            medId,
+            taken: !!taken
+        });
     },
 
     computeStatuses() {
@@ -68,28 +116,26 @@ Module.register("MMM-MedicationReminder", {
             const due = this.parseTimeToday(m.time, now);
             const diffMin = due.diff(now, "minutes", true);
 
+            const taken = this.isTakenToday(m.id);
+
             let status = "upcoming";
             if (Math.abs(diffMin) < 1) status = "due";
             else if (diffMin <= 0 && Math.abs(diffMin) <= missedGrace) status = "due";
             else if (diffMin < -missedGrace) status = "missed";
             else if (diffMin > 0 && diffMin <= alertWindow) status = "soon";
 
-            return {
-                ...m,
-                due,
-                diffMin,
-                status
-            };
+            // override if taken
+            if (taken) status = "taken";
+
+            return { ...m, due, diffMin, status, taken };
         });
 
-        // Sort by soonest due time relative to now:
-        // missed last, then due/soon/upcoming by absolute time to due
-        const priority = { due: 0, soon: 1, upcoming: 2, missed: 3 };
+        // Priority: due/soon/upcoming, taken, missed
+        const priority = { due: 0, soon: 1, upcoming: 2, taken: 3, missed: 4 };
         items.sort((a, b) => {
             const pa = priority[a.status] ?? 9;
             const pb = priority[b.status] ?? 9;
             if (pa !== pb) return pa - pb;
-
             return Math.abs(a.diffMin) - Math.abs(b.diffMin);
         });
 
@@ -99,8 +145,7 @@ Module.register("MMM-MedicationReminder", {
     parseTimeToday(hhmm, now) {
         const clean = String(hhmm).trim();
         const m = moment(clean, ["H:mm", "HH:mm"], true);
-        const due = now.clone().startOf("day").add(m.hours(), "hours").add(m.minutes(), "minutes");
-        return due;
+        return now.clone().startOf("day").add(m.hours(), "hours").add(m.minutes(), "minutes");
     },
 
     formatTime(due) {
@@ -109,23 +154,12 @@ Module.register("MMM-MedicationReminder", {
 
     formatRelative(diffMin) {
         if (!this.config.showRelative) return "";
-
         const abs = Math.abs(diffMin);
-
-        // treat < 1 minute as "now"
         if (abs < 1) return "now";
-
         const totalMins = Math.round(abs);
-
-        // < 60 mins => "in 12m"
-        if (totalMins < 60) {
-            return diffMin > 0 ? `in ${totalMins}m` : `${totalMins}m ago`;
-        }
-
-        // >= 60 mins => "in 2h 23m"
+        if (totalMins < 60) return diffMin > 0 ? `in ${totalMins}m` : `${totalMins}m ago`;
         const hours = Math.floor(totalMins / 60);
         const mins = totalMins % 60;
-
         const hm = mins === 0 ? `${hours}h` : `${hours}h ${mins}m`;
         return diffMin > 0 ? `in ${hm}` : `${hm} ago`;
     },
@@ -154,6 +188,19 @@ Module.register("MMM-MedicationReminder", {
         this.items.forEach((it) => {
             const row = document.createElement("div");
             row.className = `mmm-med__row mmm-med__row--${it.status}`;
+            row.dataset.medId = it.id;
+
+            // tap-to-taken
+            row.onclick = () => {
+                if (it.status === "missed") return;
+
+                const next = !this.isTakenToday(it.id);
+                this.setTakenToday(it.id, next);
+
+                // immediate UI feedback
+                this.items = this.computeStatuses();
+                this.updateDom(0);
+            };
 
             const left = document.createElement("div");
             left.className = "mmm-med__left";
@@ -178,14 +225,13 @@ Module.register("MMM-MedicationReminder", {
 
             const rel = document.createElement("div");
             rel.className = "mmm-med__rel dimmed";
-            rel.textContent = this.formatRelative(it.diffMin);
+            rel.textContent = it.status === "taken" ? "✓ taken" : this.formatRelative(it.diffMin);
 
             right.appendChild(time);
             if (this.config.showRelative) right.appendChild(rel);
 
             row.appendChild(left);
             row.appendChild(right);
-
             list.appendChild(row);
         });
 
