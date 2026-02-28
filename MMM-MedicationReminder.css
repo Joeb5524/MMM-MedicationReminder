@@ -55,3 +55,17 @@
     50% { transform: scale(1.01); }
     100% { transform: scale(1); }
 }
+.mmm-med__row { cursor: pointer; }
+
+.mmm-med__row--taken {
+    opacity: 0.55;
+    filter: grayscale(0.25);
+}
+
+.mmm-med__row--taken .mmm-med__name {
+    text-decoration: line-through;
+}
+
+.mmm-med__row--taken .mmm-med__rel {
+    font-weight: 700;
+}
