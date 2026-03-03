@@ -46,6 +46,20 @@ Module.register("MMM-MedicationReminder", {
             }
         }
     },
+    notificationReceived(notification, payload) {
+        if (notification !== "MED_VOICE_TAKEN") return;
+
+        // Pick a sensible candidate from what's currently shown:
+        // first item that isn't missed and isn't already taken
+        const candidate = (this.items || []).find((it) => (it.status === "due" || it.status === "soon") && !it.taken);
+        if (!candidate) return;
+
+        this.setTakenToday(candidate.id, true);
+
+        // immediate UI feedback
+        this.items = this.computeStatuses();
+        this.updateDom(0);
+    },
 
     suspend() {
         if (this._ticker) clearInterval(this._ticker);
