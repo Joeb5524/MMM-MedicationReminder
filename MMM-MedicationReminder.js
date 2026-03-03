@@ -1,4 +1,4 @@
-/* global Module */
+/* global Module, moment */
 
 Module.register("MMM-MedicationReminder", {
     defaults: {
@@ -46,15 +46,18 @@ Module.register("MMM-MedicationReminder", {
             }
         }
     },
+
     notificationReceived(notification, payload) {
-        if (notification !== "MED_VOICE_TAKEN") return;
+        if (notification !== "MED_MARK_NEXT_DUE_TAKEN") return;
 
-        // Pick a sensible candidate from what's currently shown:
-        // first item that isn't missed and isn't already taken
-        const candidate = (this.items || []).find((it) => (it.status === "due" || it.status === "soon") && !it.taken);
-        if (!candidate) return;
+        // Pick the “next actionable” med: due/soon/upcoming (not missed, not already taken)
+        const actionable = (this.items || []).find((it) =>
+            it && it.id && it.status !== "missed" && !this.isTakenToday(it.id)
+        );
 
-        this.setTakenToday(candidate.id, true);
+        if (!actionable) return;
+
+        this.setTakenToday(actionable.id, true);
 
         // immediate UI feedback
         this.items = this.computeStatuses();
@@ -89,7 +92,7 @@ Module.register("MMM-MedicationReminder", {
                 const name = String(m.name ?? "").trim();
                 const dosage = String(m.dosage ?? "").trim();
                 const time = String(m.time ?? "").trim();
-                const id = this.makeMedId(name, time); //
+                const id = this.makeMedId(name, time);
 
                 return { id, name, dosage, time };
             })
