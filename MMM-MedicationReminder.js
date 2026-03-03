@@ -39,7 +39,7 @@ Module.register("MMM-MedicationReminder", {
     },
 
     socketNotificationReceived(notification, payload) {
-        if (notification === "MED_TAKEN_SYNC") {
+        if (notification === "MED_MARK_NEXT_DUE_TAKEN") {
             if (payload && typeof payload === "object") {
                 this.takenState = payload.takenState || {};
                 this.updateDom(0);
