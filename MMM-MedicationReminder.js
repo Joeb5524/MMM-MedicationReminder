@@ -47,22 +47,22 @@ Module.register("MMM-MedicationReminder", {
         }
     },
 
-    notificationReceived(notification, payload) {
-        if (notification !== "MED_MARK_NEXT_DUE_TAKEN") return;
-
-        // Pick the “next actionable” med: due/soon/upcoming (not missed, not already taken)
-        const actionable = (this.items || []).find((it) =>
-            it && it.id && it.status !== "missed" && !this.isTakenToday(it.id)
-        );
-
-        if (!actionable) return;
-
-        this.setTakenToday(actionable.id, true);
-
-        // immediate UI feedback
-        this.items = this.computeStatuses();
-        this.updateDom(0);
-    },
+    /* Handle voice command notification (from VoiceControl) */
+            notificationReceived(notification, payload) {
+                if (notification !== "MED_MARK_NEXT_DUE_TAKEN") return;
+                    console.log("[MMM-MedicationReminder] received MED_MARK_NEXT_DUE_TAKEN");
+                    const candidate = (this.items || []).find((it) =>
+                        it && it.id && it.status !== "missed" && !this.isTakenToday(it.id)
+                    );
+                if (!candidate) {
+                        console.log("[MMM-MedicationReminder] no actionable meds");
+                        return;
+                    }
+                console.log("[MMM-MedicationReminder] marking taken:", candidate.id);
+                this.setTakenToday(candidate.id, true);
+                this.items = this.computeStatuses();
+                this.updateDom(0);
+            },
 
     suspend() {
         if (this._ticker) clearInterval(this._ticker);
