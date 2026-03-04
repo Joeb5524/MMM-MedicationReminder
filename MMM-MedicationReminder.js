@@ -29,7 +29,6 @@ Module.register("MMM-MedicationReminder", {
         this.loaded = true;
 
         this._ticker = setInterval(() => {
-            // day rollover
             const nowKey = moment().format("YYYY-MM-DD");
             if (nowKey !== this.todayKey) this.todayKey = nowKey;
 
@@ -39,30 +38,37 @@ Module.register("MMM-MedicationReminder", {
     },
 
     socketNotificationReceived(notification, payload) {
-        if (notification === "MED_MARK_NEXT_DUE_TAKEN") {
+        if (notification === "MED_TAKEN_SYNC") {
             if (payload && typeof payload === "object") {
                 this.takenState = payload.takenState || {};
+                this.items = this.computeStatuses();
                 this.updateDom(0);
             }
         }
     },
 
-    /* Handle voice command notification (from VoiceControl) */
-            notificationReceived(notification, payload) {
-                if (notification !== "MED_MARK_NEXT_DUE_TAKEN") return;
-                    console.log("[MMM-MedicationReminder] received MED_MARK_NEXT_DUE_TAKEN");
-                    const candidate = (this.items || []).find((it) =>
-                        it && it.id && it.status !== "missed" && !this.isTakenToday(it.id)
-                    );
-                if (!candidate) {
-                        console.log("[MMM-MedicationReminder] no actionable meds");
-                        return;
-                    }
-                console.log("[MMM-MedicationReminder] marking taken:", candidate.id);
-                this.setTakenToday(candidate.id, true);
-                this.items = this.computeStatuses();
-                this.updateDom(0);
-            },
+    notificationReceived(notification, payload) {
+        if (notification !== "MED_MARK_NEXT_DUE_TAKEN") return;
+
+        console.log("[MMM-MedicationReminder] received MED_MARK_NEXT_DUE_TAKEN");
+
+        // Pick the “next actionable” med: due/soon/upcoming (not missed, not already taken)
+        const candidate = (this.items || []).find((it) =>
+            it && it.id && it.status !== "missed" && !this.isTakenToday(it.id)
+        );
+
+        if (!candidate) {
+            console.log("[MMM-MedicationReminder] no actionable meds");
+            return;
+        }
+
+        console.log("[MMM-MedicationReminder] marking taken:", candidate.id);
+        this.setTakenToday(candidate.id, true);
+
+        // immediate UI feedback
+        this.items = this.computeStatuses();
+        this.updateDom(0);
+    },
 
     suspend() {
         if (this._ticker) clearInterval(this._ticker);
@@ -116,7 +122,6 @@ Module.register("MMM-MedicationReminder", {
         if (taken) this.takenState[day][medId] = true;
         else delete this.takenState[day][medId];
 
-        // Persist
         this.sendSocketNotification("MED_SET_TAKEN", {
             date: day,
             medId,
@@ -141,13 +146,11 @@ Module.register("MMM-MedicationReminder", {
             else if (diffMin < -missedGrace) status = "missed";
             else if (diffMin > 0 && diffMin <= alertWindow) status = "soon";
 
-            // override if taken
             if (taken) status = "taken";
 
             return { ...m, due, diffMin, status, taken };
         });
 
-        // Priority: due/soon/upcoming, taken, missed
         const priority = { due: 0, soon: 1, upcoming: 2, taken: 3, missed: 4 };
         items.sort((a, b) => {
             const pa = priority[a.status] ?? 9;
@@ -207,14 +210,12 @@ Module.register("MMM-MedicationReminder", {
             row.className = `mmm-med__row mmm-med__row--${it.status}`;
             row.dataset.medId = it.id;
 
-            // tap-to-taken
             row.onclick = () => {
                 if (it.status === "missed") return;
 
                 const next = !this.isTakenToday(it.id);
                 this.setTakenToday(it.id, next);
 
-                // immediate UI feedback
                 this.items = this.computeStatuses();
                 this.updateDom(0);
             };
