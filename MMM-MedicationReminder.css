@@ -15,6 +15,16 @@
     padding: 10px 12px;
     border-radius: 10px;
     background: rgba(255, 255, 255, 0.06);
+    cursor: pointer;
+    transition: transform 120ms ease, opacity 120ms ease, background 120ms ease;
+}
+
+.mmm-med__row--disabled {
+    cursor: default;
+}
+
+.mmm-med__row:active {
+    transform: scale(0.995);
 }
 
 .mmm-med__name {
@@ -39,7 +49,6 @@
     margin-top: 2px;
 }
 
-
 .mmm-med__row--due {
     background: rgba(255, 255, 255, 0.16);
     animation: mmm-med-pulse 1.2s ease-in-out infinite;
@@ -49,13 +58,15 @@
     background: rgba(255, 255, 255, 0.11);
 }
 
+.mmm-med__row--missed {
+    opacity: 0.7;
+}
 
 @keyframes mmm-med-pulse {
     0% { transform: scale(1); }
     50% { transform: scale(1.01); }
     100% { transform: scale(1); }
 }
-.mmm-med__row { cursor: pointer; }
 
 .mmm-med__row--taken {
     opacity: 0.55;

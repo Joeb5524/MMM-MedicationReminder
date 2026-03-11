@@ -17,16 +17,20 @@ module.exports = NodeHelper.create({
         }
 
         if (notification === "MED_SET_TAKEN" && payload) {
-            const date = String(payload.date || "");
-            const medId = String(payload.medId || "");
+            const date = String(payload.date || "").trim();
+            const medId = String(payload.medId || "").trim();
             const taken = !!payload.taken;
 
             if (!date || !medId) return;
 
             if (!this.takenState[date]) this.takenState[date] = {};
+
             if (taken) this.takenState[date][medId] = true;
             else delete this.takenState[date][medId];
 
+            if (!Object.keys(this.takenState[date]).length) delete this.takenState[date];
+
+            this._pruneOldDays();
             this._save();
             this.sendSocketNotification("MED_TAKEN_SYNC", { takenState: this.takenState });
         }
@@ -39,8 +43,9 @@ module.exports = NodeHelper.create({
     _load() {
         try {
             if (!fs.existsSync(this.filePath)) return {};
-            return JSON.parse(fs.readFileSync(this.filePath, "utf8")) || {};
-        } catch (e) {
+            const parsed = JSON.parse(fs.readFileSync(this.filePath, "utf8"));
+            return parsed && typeof parsed === "object" ? parsed : {};
+        } catch (_) {
             return {};
         }
     },
@@ -48,6 +53,16 @@ module.exports = NodeHelper.create({
     _save() {
         try {
             fs.writeFileSync(this.filePath, JSON.stringify(this.takenState, null, 2), "utf8");
-        } catch (e) {}
+        } catch (_) {}
+    },
+
+    _pruneOldDays() {
+        const keys = Object.keys(this.takenState).sort();
+        const keep = 31;
+
+        while (keys.length > keep) {
+            const oldest = keys.shift();
+            if (oldest) delete this.takenState[oldest];
+        }
     }
 });
