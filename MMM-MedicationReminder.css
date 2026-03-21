@@ -20,7 +20,8 @@
 }
 
 .mmm-med__row--disabled {
-    cursor: default;
+    cursor: not-allowed;
+    opacity: 0.55;
 }
 
 .mmm-med__row:active {

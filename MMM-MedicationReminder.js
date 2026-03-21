@@ -9,7 +9,9 @@ Module.register("MMM-MedicationReminder", {
         updateIntervalMs: 1000,
         use24Hour: true,
         showRelative: true,
-        maxItems: 6
+        maxItems: 6,
+        allowMarkMissed: true,
+        timeFormats: ["H:mm", "HH:mm", "h:mm A", "hh:mm A", "h:mma", "hh:mma"]
     },
 
     start() {
@@ -97,8 +99,13 @@ Module.register("MMM-MedicationReminder", {
     },
 
     isValidTime(hhmm) {
-        return moment(String(hhmm).trim(), ["H:mm", "HH:mm"], true).isValid();
+        const formats = Array.isArray(this.config.timeFormats) && this.config.timeFormats.length
+            ? this.config.timeFormats
+            : ["H:mm", "HH:mm", "h:mm A", "hh:mm A", "h:mma", "hh:mma"];
+
+        return moment(String(hhmm).trim(), formats, true).isValid();
     },
+
 
     isTakenToday(medId) {
         const day = this.todayKey;
@@ -155,7 +162,11 @@ Module.register("MMM-MedicationReminder", {
 
     parseTimeToday(hhmm, now) {
         const clean = String(hhmm).trim();
-        const m = moment(clean, ["H:mm", "HH:mm"], true);
+        const formats = Array.isArray(this.config.timeFormats) && this.config.timeFormats.length
+            ? this.config.timeFormats
+            : ["H:mm", "HH:mm", "h:mm A", "hh:mm A", "h:mma", "hh:mma"];
+
+        const m = moment(clean, formats, true);
 
         if (!m.isValid()) {
             return now.clone().startOf("day");
@@ -163,6 +174,7 @@ Module.register("MMM-MedicationReminder", {
 
         return now.clone().startOf("day").add(m.hours(), "hours").add(m.minutes(), "minutes");
     },
+
 
     formatTime(due) {
         return this.config.use24Hour ? due.format("HH:mm") : due.format("h:mm A");
@@ -212,7 +224,9 @@ Module.register("MMM-MedicationReminder", {
             row.setAttribute("role", "button");
             row.setAttribute("tabindex", "0");
 
-            if (it.status !== "missed") {
+            const markable = this.config.allowMarkMissed ? true : it.status !== "missed";
+
+            if (markable) {
                 row.onclick = () => {
                     const next = !this.isTakenToday(it.id);
                     this.setTakenToday(it.id, next);
@@ -228,6 +242,8 @@ Module.register("MMM-MedicationReminder", {
                 };
             } else {
                 row.classList.add("mmm-med__row--disabled");
+                row.removeAttribute("role");
+                row.removeAttribute("tabindex");
             }
 
             const left = document.createElement("div");
