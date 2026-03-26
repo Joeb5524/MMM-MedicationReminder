@@ -11,6 +11,9 @@ Module.register("MMM-MedicationReminder", {
         showRelative: true,
         maxItems: 6,
         allowMarkMissed: true,
+        playTakenSound: true,
+        takenSoundVolume: 0.18,
+        takenSoundDurationMs: 220,
         timeFormats: ["H:mm", "HH:mm", "h:mm A", "hh:mm A", "h:mma", "hh:mma"]
     },
 
@@ -19,6 +22,7 @@ Module.register("MMM-MedicationReminder", {
         this.items = [];
         this._ticker = null;
         this._meds = [];
+        this._audioContext = null;
         this.takenState = {};
         this.todayKey = moment().format("YYYY-MM-DD");
 
@@ -114,14 +118,23 @@ Module.register("MMM-MedicationReminder", {
 
     setTakenToday(medId, taken) {
         const day = this.todayKey;
+        const nextTaken = !!taken;
+        const wasTaken = !!(this.takenState[day] && this.takenState[day][medId]);
+
+        if (wasTaken === nextTaken) return;
+
         if (!this.takenState[day]) this.takenState[day] = {};
-        if (taken) this.takenState[day][medId] = true;
+        if (nextTaken) this.takenState[day][medId] = true;
         else delete this.takenState[day][medId];
+
+        if (!Object.keys(this.takenState[day]).length) delete this.takenState[day];
+
+        if (nextTaken) this._playTakenSound();
 
         this.sendSocketNotification("MED_SET_TAKEN", {
             date: day,
             medId,
-            taken: !!taken
+            taken: nextTaken
         });
     },
 
@@ -300,6 +313,54 @@ Module.register("MMM-MedicationReminder", {
     _stopTicker() {
         if (this._ticker) clearInterval(this._ticker);
         this._ticker = null;
+    },
+
+    _playTakenSound() {
+        if (!this.config.playTakenSound) return;
+
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextClass) return;
+
+        if (!this._audioContext) this._audioContext = new AudioContextClass();
+
+        const duration = Math.max(80, Number(this.config.takenSoundDurationMs) || 220) / 1000;
+        const volume = Math.max(0.001, Math.min(1, Number(this.config.takenSoundVolume) || 0.18));
+        const ctx = this._audioContext;
+
+        const play = () => {
+            const startAt = ctx.currentTime;
+            const stopAt = startAt + duration;
+            const gain = ctx.createGain();
+            const primary = ctx.createOscillator();
+            const overtone = ctx.createOscillator();
+
+            gain.gain.setValueAtTime(0.0001, startAt);
+            gain.gain.exponentialRampToValueAtTime(volume, startAt + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.0001, stopAt);
+            gain.connect(ctx.destination);
+
+            primary.type = "sine";
+            primary.frequency.setValueAtTime(1046.5, startAt);
+            primary.frequency.exponentialRampToValueAtTime(1318.5, startAt + 0.08);
+            primary.connect(gain);
+
+            overtone.type = "triangle";
+            overtone.frequency.setValueAtTime(1567.98, startAt);
+            overtone.frequency.exponentialRampToValueAtTime(1760, startAt + 0.06);
+            overtone.connect(gain);
+
+            primary.start(startAt);
+            overtone.start(startAt);
+            primary.stop(stopAt);
+            overtone.stop(stopAt);
+        };
+
+        if (ctx.state === "suspended") {
+            ctx.resume().then(play).catch(() => {});
+            return;
+        }
+
+        play();
     },
 
     _findMedicationFromPayload(payload) {
