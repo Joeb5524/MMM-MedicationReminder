@@ -215,13 +215,13 @@ Module.register("MMM-MedicationReminder", {
 
         if (!this.loaded) {
             wrapper.innerHTML = "Loading…";
-            wrapper.classList.add("dimmed", "light", "small");
+            wrapper.classList.add("light", "small");
             return wrapper;
         }
 
         if (!this.items.length) {
             const empty = document.createElement("div");
-            empty.className = "mmm-med__empty dimmed light";
+            empty.className = "mmm-med__empty light";
             empty.textContent = "No medications configured";
             wrapper.appendChild(empty);
             return wrapper;
@@ -267,7 +267,7 @@ Module.register("MMM-MedicationReminder", {
             name.textContent = it.name;
 
             const meta = document.createElement("div");
-            meta.className = "mmm-med__meta dimmed";
+            meta.className = "mmm-med__meta";
             meta.textContent = it.dosage || "";
 
             left.appendChild(name);
@@ -281,7 +281,7 @@ Module.register("MMM-MedicationReminder", {
             time.textContent = this.formatTime(it.due);
 
             const rel = document.createElement("div");
-            rel.className = "mmm-med__rel dimmed";
+            rel.className = "mmm-med__rel";
             rel.textContent = it.status === "taken" ? "✓ taken" : this.formatRelative(it.diffMin);
 
             right.appendChild(time);
