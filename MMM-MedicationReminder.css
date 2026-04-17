@@ -1,5 +1,5 @@
 .mmm-med {
-    width: 500px;
+    width: min(100%, 560px);
 }
 
 .mmm-med__list {
@@ -9,14 +9,16 @@
 }
 
 .mmm-med__row {
-    display: flex;
-    justify-content: space-between;
+    display: grid;
+    grid-template-columns: 1fr auto;
     align-items: center;
-    padding: 10px 12px;
-    border-radius: 10px;
-    background: rgba(255, 255, 255, 0.06);
+    gap: 16px;
+    padding: 14px 16px;
+    border-radius: 18px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.04));
     cursor: pointer;
-    transition: transform 120ms ease, opacity 120ms ease, background 120ms ease;
+    transition: transform 120ms ease, opacity 120ms ease, background 120ms ease, border-color 120ms ease;
 }
 
 .mmm-med__row--disabled {
@@ -24,22 +26,30 @@
     opacity: 0.55;
 }
 
+.mmm-med__left {
+    min-width: 0;
+}
+
+.mmm-med__right {
+    justify-self: end;
+}
+
 .mmm-med__row:active {
     transform: scale(0.995);
 }
 
 .mmm-med__name {
-    font-size: 40px;
+    font-size: clamp(22px, 3.2vw, 32px);
     line-height: 1.1;
 }
 
 .mmm-med__meta {
-    font-size: 32px;
+    font-size: clamp(16px, 2.4vw, 22px);
     margin-top: 2px;
 }
 
 .mmm-med__time {
-    font-size: 32px;
+    font-size: clamp(16px, 2.4vw, 22px);
     text-align: right;
     line-height: 1.1;
 }
@@ -51,22 +61,17 @@
 }
 
 .mmm-med__row--due {
-    background: rgba(255, 255, 255, 0.16);
-    animation: mmm-med-pulse 1.2s ease-in-out infinite;
+    border-color: rgba(255, 196, 78, 0.38);
+    background: rgba(255, 196, 78, 0.12);
 }
 
 .mmm-med__row--soon {
-    background: rgba(255, 255, 255, 0.11);
+    border-color: rgba(105, 213, 255, 0.28);
+    background: rgba(105, 213, 255, 0.08);
 }
 
 .mmm-med__row--missed {
     opacity: 0.7;
-}
-
-@keyframes mmm-med-pulse {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.01); }
-    100% { transform: scale(1); }
 }
 
 .mmm-med__row--taken {
